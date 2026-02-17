@@ -17,6 +17,7 @@ export default function Gacha() {
       setDraw(null);
       setSpinning(true);
 
+      // 2秒演出
       await new Promise((r) => setTimeout(r, 2000));
 
       try {
@@ -54,10 +55,67 @@ export default function Gacha() {
     <main>
       <h1>ガチャ</h1>
 
+      {/* アニメ用CSS（安全な置き方） */}
+      <style>{`
+        @keyframes wobble {
+          0% { transform: rotate(-6deg) translateY(0px); }
+          50% { transform: rotate(6deg) translateY(-3px); }
+          100% { transform: rotate(-6deg) translateY(0px); }
+        }
+        @keyframes spinCapsule {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes twinkle {
+          0%,100% { transform: scale(1); opacity: 0.5; }
+          50% { transform: scale(1.25); opacity: 1; }
+        }
+        @keyframes pop {
+          0% { transform: scale(0.96); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+
       {spinning ? (
-        <div style={{ padding: 16, borderRadius: 14, border: "1px solid #e5e7eb" }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>抽選中...</div>
-          <div style={{ opacity: 0.7 }}>くるくる…（2秒）</div>
+        <div style={{ padding: 16, borderRadius: 16, border: "1px solid #e5e7eb" }}>
+          <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 10 }}>抽選中…</div>
+
+          <div style={{ position: "relative", width: 240, height: 190, margin: "0 auto" }}>
+            {/* ガチャ枠 */}
+            <div
+              style={{
+                position: "absolute",
+                left: 70,
+                top: 15,
+                width: 100,
+                height: 100,
+                borderRadius: 999,
+                border: "6px solid #111827",
+                boxSizing: "border-box",
+                animation: "wobble 0.45s ease-in-out infinite"
+              }}
+            />
+            {/* カプセル */}
+            <div
+              style={{
+                position: "absolute",
+                left: 88,
+                top: 33,
+                width: 64,
+                height: 64,
+                borderRadius: 999,
+                background: "linear-gradient(#60a5fa 0 50%, #fca5a5 50% 100%)",
+                boxShadow: "0 10px 20px rgba(0,0,0,0.15)",
+                animation: "spinCapsule 0.85s linear infinite"
+              }}
+            />
+            {/* キラキラ */}
+            <div style={{ position: "absolute", left: 30, top: 25, fontSize: 18, animation: "twinkle 0.8s ease-in-out infinite" }}>✨</div>
+            <div style={{ position: "absolute", right: 30, top: 55, fontSize: 16, animation: "twinkle 0.9s ease-in-out infinite" }}>✨</div>
+            <div style={{ position: "absolute", left: 45, bottom: 35, fontSize: 14, animation: "twinkle 1.0s ease-in-out infinite" }}>✨</div>
+          </div>
+
+          <div style={{ opacity: 0.7, fontSize: 12, textAlign: "center" }}>（約2秒）</div>
         </div>
       ) : null}
 
@@ -68,15 +126,24 @@ export default function Gacha() {
       ) : null}
 
       {(!spinning && draw) ? (
-        <div style={{ marginTop: 12, padding: 16, borderRadius: 14, background: "#dcfce7", color: "#14532d" }}>
-          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>
+        <div
+          style={{
+            marginTop: 12,
+            padding: 16,
+            borderRadius: 14,
+            background: "#dcfce7",
+            color: "#14532d",
+            animation: "pop 180ms ease-out"
+          }}
+        >
+          <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>
             {draw?.prizes?.title ?? "当選"}
           </div>
           <div style={{ whiteSpace: "pre-wrap" }}>
             {draw?.display_message}
           </div>
           {draw?.prizes?.description ? (
-            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
               {draw.prizes.description}
             </div>
           ) : null}
@@ -97,4 +164,5 @@ export default function Gacha() {
     </main>
   );
 }
+
 

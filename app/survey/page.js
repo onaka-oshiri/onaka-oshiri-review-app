@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 const Q1_SERVICES = [
@@ -33,7 +33,8 @@ const Q2_REASONS = [
 
 const Q3_LABELS = ["とても満足", "満足", "普通", "やや不満", "不満"];
 
-export default function Survey() {
+/** ✅ 重要：useSearchParams を使う本体は Suspense の内側に置く */
+function SurveyInner() {
   const params = useSearchParams();
   const router = useRouter();
   const sid = params.get("sid") || "";
@@ -90,7 +91,6 @@ export default function Survey() {
         return;
       }
 
-      // ✅ 送信成功したら同じsidでガチャへ
       router.push(`/gacha?sid=${encodeURIComponent(sid)}`);
     } catch (e) {
       setErr(`通信エラー：${String(e)}`);
@@ -210,3 +210,12 @@ export default function Survey() {
     </main>
   );
 }
+
+export default function SurveyPage() {
+  return (
+    <Suspense fallback={<main style={{ padding: 24 }}>読み込み中...</main>}>
+      <SurveyInner />
+    </Suspense>
+  );
+}
+

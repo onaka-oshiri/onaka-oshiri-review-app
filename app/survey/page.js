@@ -91,7 +91,7 @@ function SurveyInner() {
         return;
       }
 
-      router.push(`/gacha?sid=${encodeURIComponent(sid)}`);
+      router.push(`/gacha?sid=${encodeURIComponent(sid)}&star=${encodeURIComponent(q3Star)}`);
     } catch (e) {
       setErr(`通信エラー：${String(e)}`);
     } finally {

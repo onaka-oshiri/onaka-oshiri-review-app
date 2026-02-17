@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-export default function Gacha() {
+function GachaInner() {
+  const params = useSearchParams();
+
+  // sidは必須（受付QR→/start→/survey→/gacha で渡ってくる）
+  const sessionId = params.get("sid") || "";
+
+  // 星は「URLの star」を最優先（survey側で付けるのが最強）
+  // 例：/gacha?sid=...&star=5
+  const starFromQuery = Number(params.get("star") || "");
+  const star = Number.isFinite(starFromQuery) && starFromQuery > 0 ? starFromQuery : null;
+
   const [phase, setPhase] = useState("mix"); // mix -> drop -> open -> reveal
   const [draw, setDraw] = useState(null);
   const [err, setErr] = useState("");
-
-  // テスト中：固定。あとで「QR→自動発行」に置換
-  const sessionId = "94a2a745-97ad-47f2-9e75-1056aba54255";
 
   const capsuleDots = useMemo(
     () => [
@@ -35,6 +43,8 @@ export default function Gacha() {
     return { top: "#60a5fa", bottom: "#fca5a5", glow: "rgba(96,165,250,0.45)", label: "LUCKY" };
   }, [tier]);
 
+  const isPositive = star !== null ? star >= 5 : false; // ★が分からない場合は強誘導しない
+
   useEffect(() => {
     let alive = true;
 
@@ -42,6 +52,13 @@ export default function Gacha() {
       setErr("");
       setDraw(null);
       setPhase("mix");
+
+      // sidがない場合は止める（直アクセス対策）
+      if (!sessionId) {
+        setErr("URLの sid がありません。受付のQRから開き直してください。");
+        setPhase("reveal");
+        return;
+      }
 
       // ① ガラガラ（2.0秒）
       await new Promise((r) => setTimeout(r, 2000));
@@ -57,11 +74,13 @@ export default function Gacha() {
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.ok) {
           setErr(`抽選に失敗しました：${json?.error?.message ?? json?.error ?? res.statusText}`);
+          setPhase("reveal");
           return;
         }
         setDraw(json.draw);
       } catch (e) {
         setErr(`通信エラー：${String(e)}`);
+        setPhase("reveal");
         return;
       }
 
@@ -83,7 +102,7 @@ export default function Gacha() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [sessionId]);
 
   const prizeTitle = draw?.prizes?.title ?? "当選";
   const prizeDesc = draw?.prizes?.description ?? "";
@@ -102,7 +121,7 @@ export default function Gacha() {
         /* ====== MACHINE ====== */
         .machine {
           width: 340px;
-          height: 470px;
+          height: 500px;
           margin: 10px auto 0;
           position: relative;
           border-radius: 28px;
@@ -177,7 +196,7 @@ export default function Gacha() {
           background: rgba(255,255,255,0.88);
           border-radius: 999px;
           transform-origin: 0% 50%;
-          transform: translateY(-50%) translateX(0px) rotate(0deg);
+          transform: translateY(-50%) rotate(0deg);
           box-shadow: 0 6px 14px rgba(0,0,0,0.18);
         }
         .handleSpin .handleArm { animation: crank 0.55s ease-in-out infinite; }
@@ -266,22 +285,7 @@ export default function Gacha() {
           100% { transform: translate(80px, 95px) rotate(360deg); }
         }
 
-        /* ====== DISPENSE / DROP PATH ====== */
-        .tray {
-          position: absolute;
-          left: 20px;
-          right: 20px;
-          bottom: 34px;
-          height: 110px;
-          border-radius: 20px;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.10);
-          box-shadow: inset 0 8px 18px rgba(0,0,0,0.32);
-          display: grid;
-          place-items: center;
-          overflow: hidden;
-        }
-
+        /* ====== SLOT / TRAY ====== */
         .slot {
           position: absolute;
           top: 308px;
@@ -294,11 +298,26 @@ export default function Gacha() {
           box-shadow: inset 0 2px 6px rgba(0,0,0,0.45);
         }
 
+        .tray {
+          position: absolute;
+          left: 20px;
+          right: 20px;
+          bottom: 34px;
+          height: 120px;
+          border-radius: 20px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.10);
+          box-shadow: inset 0 8px 18px rgba(0,0,0,0.32);
+          display: grid;
+          place-items: center;
+          overflow: hidden;
+        }
+
         /* ====== HERO CAPSULE (drop/open) ====== */
         .heroWrap {
           position: absolute;
           left: 50%;
-          top: 272px; /* slot近辺 */
+          top: 272px;
           transform: translateX(-50%);
           width: 110px;
           height: 220px;
@@ -306,7 +325,6 @@ export default function Gacha() {
           z-index: 5;
         }
 
-        /* 落下＋コロン（バウンド） */
         .dropBounce {
           animation: dropBounce 1.0s cubic-bezier(.2,.9,.2,1) forwards;
         }
@@ -364,7 +382,6 @@ export default function Gacha() {
           transform: rotate(-18deg);
         }
 
-        /* 開封 */
         .open .half.top { animation: openTop 0.9s ease-out forwards; }
         .open .half.bottom { animation: openBottom 0.9s ease-out forwards; }
         @keyframes openTop {
@@ -374,6 +391,10 @@ export default function Gacha() {
         @keyframes openBottom {
           0% { transform: translateY(0) rotate(0deg); }
           100% { transform: translateY(20px) rotate(20deg); }
+        }
+
+        .winGlow {
+          box-shadow: 0 0 0 2px rgba(255,255,255,0.10), 0 0 35px var(--glow);
         }
 
         /* ====== REVEAL CARD ====== */
@@ -395,6 +416,17 @@ export default function Gacha() {
           font-size: 22px;
           margin-bottom: 8px;
         }
+        .badge {
+          display: inline-block;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.6px;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(17,24,39,0.08);
+          border: 1px solid rgba(17,24,39,0.12);
+          margin-bottom: 8px;
+        }
         .tinyNote {
           margin-top: 14px;
           font-size: 12px;
@@ -409,20 +441,32 @@ export default function Gacha() {
           text-align: left;
         }
 
-        /* “当選色”演出 */
-        .winGlow {
-          box-shadow: 0 0 0 2px rgba(255,255,255,0.10), 0 0 35px var(--glow);
+        /* Google誘導ブロック（★5のみ） */
+        .cta {
+          margin-top: 18px;
+          padding: 16px;
+          border-radius: 16px;
+          background: #fef3c7;
+          border: 1px solid #fcd34d;
+          color: #111827;
         }
-        .badge {
+        .ctaBtn {
           display: inline-block;
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: 0.6px;
-          padding: 6px 10px;
+          margin-top: 10px;
+          padding: 12px 18px;
           border-radius: 999px;
-          background: rgba(17,24,39,0.08);
-          border: 1px solid rgba(17,24,39,0.12);
-          margin-bottom: 8px;
+          background: #111827;
+          color: #fff;
+          font-weight: 900;
+          text-decoration: none;
+        }
+        .internal {
+          margin-top: 18px;
+          padding: 16px;
+          border-radius: 16px;
+          background: #eef2ff;
+          border: 1px solid #c7d2fe;
+          color: #111827;
         }
       `}</style>
 
@@ -444,15 +488,16 @@ export default function Gacha() {
             </div>
           </div>
 
+          {/* ガラス室 */}
           <div className={`glass ${phase === "mix" ? "mixing" : ""}`}>
             <div className="shine" />
 
-            {/* ガチャ内カプセル */}
+            {/* ガチャ内カプセル（ガラガラ） */}
             <div className="capsuleDot c1" style={{ ["--top"]: capsuleDots[0].top, ["--bottom"]: capsuleDots[0].bottom }} />
             <div className="capsuleDot c2" style={{ ["--top"]: capsuleDots[1].top, ["--bottom"]: capsuleDots[1].bottom }} />
             <div className="capsuleDot c3" style={{ ["--top"]: capsuleDots[2].top, ["--bottom"]: capsuleDots[2].bottom }} />
 
-            {/* mix以外は静止っぽく配置（自然） */}
+            {/* mix以外は静止っぽく配置 */}
             {phase !== "mix" ? (
               <>
                 <div className="capsuleDot" style={{ ["--top"]: capsuleDots[0].top, ["--bottom"]: capsuleDots[0].bottom, transform: "translate(30px, 150px)" }} />
@@ -465,7 +510,7 @@ export default function Gacha() {
           {/* スロット */}
           <div className="slot" />
 
-          {/* 主役カプセル：drop/open/revealで表示（ここが落ちる＆開く） */}
+          {/* 主役カプセル：drop/open/revealで表示 */}
           {(phase === "drop" || phase === "open" || phase === "reveal") && !err ? (
             <div className={`heroWrap ${phase === "drop" ? "dropBounce" : ""}`}>
               <div
@@ -488,26 +533,65 @@ export default function Gacha() {
           </div>
         </div>
 
+        {/* エラー */}
         {err ? <div className="errorBox">{err}</div> : null}
 
-        {/* 結果（開封後） */}
+        {/* 結果表示 */}
         {phase === "reveal" && !err && draw ? (
           <div className="revealCard">
             <div className="badge">{theme.label}</div>
             <div className="bigTitle">🎉 {prizeTitle}</div>
             <div style={{ whiteSpace: "pre-wrap" }}>{displayMessage || "受付でお申し出ください。"}</div>
             {prizeDesc ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{prizeDesc}</div> : null}
+
+            {/* ★5のみGoogleを強く誘導／それ以外は院内フィードバックのみ */}
+            {isPositive ? (
+              <div className="cta">
+                <div style={{ fontWeight: 900, fontSize: 16 }}>
+                  ご満足いただけましたら、ぜひGoogleの口コミもお願いいたします 🙇
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
+                  （投稿は任意です。いただいたご意見は今後の診療改善に活かします）
+                </div>
+                <a className="ctaBtn" href="/review">
+                  Googleに口コミを書く
+                </a>
+              </div>
+            ) : (
+              <div className="internal">
+                <div style={{ fontWeight: 900, fontSize: 16 }}>貴重なご意見ありがとうございます。</div>
+                <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
+                  より良い医療を提供できるよう、院内で改善に活かさせていただきます。
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
-
-        <div style={{ marginTop: 16 }}>
-          <a href="/review">よろしければGoogleへ →</a>
-        </div>
 
         <div className="tinyNote">
           本ガチャはアンケート回答への謝礼です。Google口コミ投稿は任意です。
         </div>
+
+        <div style={{ marginTop: 12 }}>
+          <a href="/">←戻る</a>
+        </div>
+
+        {/* ★がURLに来てない場合のヒント（運用に支障は出ない） */}
+        {phase === "reveal" && !err && draw && star === null ? (
+          <div style={{ marginTop: 10, fontSize: 11, opacity: 0.55 }}>
+            ※star がURLに無い場合、Google誘導は強調しません（運用最適化のため）
+          </div>
+        ) : null}
       </div>
     </main>
   );
 }
+
+export default function GachaPage() {
+  return (
+    <Suspense fallback={<main style={{ padding: 24 }}>読み込み中...</main>}>
+      <GachaInner />
+    </Suspense>
+  );
+}
+

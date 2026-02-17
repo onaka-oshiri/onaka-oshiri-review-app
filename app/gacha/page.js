@@ -553,7 +553,7 @@ function GachaInner() {
                 <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
                   （投稿は任意です。いただいたご意見は今後の診療改善に活かします）
                 </div>
-                <a className="ctaBtn" href="/review">
+                <a className="ctaBtn" href={`/review?sid=${encodeURIComponent(sessionId)}&star=${encodeURIComponent(star ?? "")}`}>
                   Googleに口コミを書く
                 </a>
               </div>

@@ -1,5 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
+function starToLabel(star) {
+  const s = Number(star || 0);
+  if (s >= 5) return "とても満足";
+  if (s === 4) return "満足";
+  if (s === 3) return "普通";
+  if (s === 2) return "やや不満";
+  return "不満"; // 1 or 0
+}
+
 export async function POST(req) {
   try {
     const url = process.env.SUPABASE_URL;
@@ -19,30 +28,27 @@ export async function POST(req) {
     }
 
     const q3_star = Number(body.q3_star || 0);
-
-    // ★→ラベル（DB制約対策）
-    // 5: A / 4: B / 1-3: C
-    const q3_label = q3_star >= 5 ? "A" : (q3_star === 4 ? "B" : "C");
+    const q3_label = starToLabel(q3_star); // ★ここが今回の核心
 
     const row = {
       clinic_id,
       session_id,
 
-      // 既存（あなたのDBにある前提の列）
+      // 既存列（あなたのDBにある想定）
       q1_services: body.q1_services ?? [],
       q2_reasons: body.q2_reasons ?? [],
       q3_star,
-      q3_label,              // ★ここが今回の必須
+      q3_label,
       q4_free: body.q4_free ?? "",
 
-      // 新しく増やした列
+      // 追加列（増やした分）
       q3_anxiety: body.q3_anxiety ?? "",
       q5_impressions: body.q5_impressions ?? [],
       q6_experience: body.q6_experience ?? "",
       q7_recommend: body.q7_recommend ?? ""
     };
 
-    // まずは insert（ダメなら error が返る）
+    // まず insert（同sid重複があり得るなら、後でupsertに変更）
     const { error } = await supabase.from("survey_answers").insert(row);
 
     if (error) {
@@ -54,3 +60,4 @@ export async function POST(req) {
     return Response.json({ ok: false, error: String(e) }, { status: 500 });
   }
 }
+

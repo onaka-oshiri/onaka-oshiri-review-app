@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function SurveyPage() {
+function SurveyInner() {
   const router = useRouter();
   const params = useSearchParams();
   const sid = params.get("sid");
@@ -43,45 +43,19 @@ export default function SurveyPage() {
     router.push(`/gacha?sid=${sid}&star=${form.q3_star}`);
   };
 
-  const Card = ({ children }) => (
-    <div style={{ padding: 20, maxWidth: 500, margin: "40px auto" }}>
-      {children}
-    </div>
-  );
-
-  const Option = ({ label, onClick, active }) => (
-    <div
-      onClick={onClick}
-      style={{
-        padding: 14,
-        margin: "8px 0",
-        borderRadius: 10,
-        border: active ? "2px solid #111" : "1px solid #ccc",
-        cursor: "pointer"
-      }}
-    >
-      {label}
-    </div>
-  );
-
   if (!sid) return <div>sidがありません</div>;
 
   return (
-    <Card>
-      <div style={{ marginBottom: 20 }}>
-        STEP {step} / 7
-      </div>
+    <div style={{ padding: 20, maxWidth: 500, margin: "40px auto" }}>
+      <div style={{ marginBottom: 20 }}>STEP {step} / 7</div>
 
       {step === 1 && (
         <>
           <h2>本日の受診内容</h2>
           {["大腸カメラ","胃カメラ","ジオン注射","マンジャロ注射"].map(v => (
-            <Option
-              key={v}
-              label={v}
-              active={form.q1_services.includes(v)}
-              onClick={() => toggleArray("q1_services", v)}
-            />
+            <div key={v} onClick={() => toggleArray("q1_services", v)} style={{margin:8,padding:10,border:"1px solid #ccc",cursor:"pointer"}}>
+              {v}
+            </div>
           ))}
           <button onClick={next}>次へ</button>
         </>
@@ -91,12 +65,9 @@ export default function SurveyPage() {
         <>
           <h2>当院を選んだ理由</h2>
           {["口コミ","立地","専門性","女性医師","AI内視鏡"].map(v => (
-            <Option
-              key={v}
-              label={v}
-              active={form.q2_reasons.includes(v)}
-              onClick={() => toggleArray("q2_reasons", v)}
-            />
+            <div key={v} onClick={() => toggleArray("q2_reasons", v)} style={{margin:8,padding:10,border:"1px solid #ccc",cursor:"pointer"}}>
+              {v}
+            </div>
           ))}
           <button onClick={back}>戻る</button>
           <button onClick={next}>次へ</button>
@@ -107,12 +78,9 @@ export default function SurveyPage() {
         <>
           <h2>受診前の不安は？</h2>
           {["とても不安","少し不安","あまり不安なし","不安なし"].map(v => (
-            <Option
-              key={v}
-              label={v}
-              active={form.q3_anxiety === v}
-              onClick={() => setForm(prev => ({...prev, q3_anxiety: v}))}
-            />
+            <div key={v} onClick={() => setForm(prev => ({...prev, q3_anxiety: v}))} style={{margin:8,padding:10,border:"1px solid #ccc",cursor:"pointer"}}>
+              {v}
+            </div>
           ))}
           <button onClick={back}>戻る</button>
           <button onClick={next}>次へ</button>
@@ -123,12 +91,9 @@ export default function SurveyPage() {
         <>
           <h2>印象に残った点</h2>
           {["説明が丁寧","痛みに配慮","スタッフが親切","清潔感","待ち時間短い"].map(v => (
-            <Option
-              key={v}
-              label={v}
-              active={form.q5_impressions.includes(v)}
-              onClick={() => toggleArray("q5_impressions", v)}
-            />
+            <div key={v} onClick={() => toggleArray("q5_impressions", v)} style={{margin:8,padding:10,border:"1px solid #ccc",cursor:"pointer"}}>
+              {v}
+            </div>
           ))}
           <button onClick={back}>戻る</button>
           <button onClick={next}>次へ</button>
@@ -139,12 +104,9 @@ export default function SurveyPage() {
         <>
           <h2>検査体験の印象</h2>
           {["想像より楽","問題なかった","少し緊張","不安が残った"].map(v => (
-            <Option
-              key={v}
-              label={v}
-              active={form.q6_experience === v}
-              onClick={() => setForm(prev => ({...prev, q6_experience: v}))}
-            />
+            <div key={v} onClick={() => setForm(prev => ({...prev, q6_experience: v}))} style={{margin:8,padding:10,border:"1px solid #ccc",cursor:"pointer"}}>
+              {v}
+            </div>
           ))}
           <button onClick={back}>戻る</button>
           <button onClick={next}>次へ</button>
@@ -178,7 +140,16 @@ export default function SurveyPage() {
           <button onClick={submit}>送信してガチャへ</button>
         </>
       )}
-    </Card>
+    </div>
   );
 }
+
+export default function SurveyPage() {
+  return (
+    <Suspense fallback={<div style={{padding:20}}>読み込み中...</div>}>
+      <SurveyInner />
+    </Suspense>
+  );
+}
+
 

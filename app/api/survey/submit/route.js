@@ -9,7 +9,6 @@ export async function POST(req) {
     }
 
     const supabase = createClient(url, key);
-
     const body = await req.json();
 
     const clinic_id = Number(body.clinic_id || 1);
@@ -21,33 +20,30 @@ export async function POST(req) {
 
     const q3_star = Number(body.q3_star || 0);
 
-    // ★からq3_labelを自動生成（DBの制約を満たすため）
-    // 5→A, 4→B, 1-3→C
-    const q3_label = q3_star >= 5 ? "A" : q3_star === 4 ? "B" : "C";
+    // ★→ラベル（DB制約対策）
+    // 5: A / 4: B / 1-3: C
+    const q3_label = q3_star >= 5 ? "A" : (q3_star === 4 ? "B" : "C");
 
-    // 保存するデータ（必要カラムだけ）
     const row = {
       clinic_id,
       session_id,
 
-      // 既存カラム
+      // 既存（あなたのDBにある前提の列）
       q1_services: body.q1_services ?? [],
       q2_reasons: body.q2_reasons ?? [],
       q3_star,
-      q3_label, // ←これが今回の核心
+      q3_label,              // ★ここが今回の必須
       q4_free: body.q4_free ?? "",
 
-      // 追加カラム（今回増やした分）
+      // 新しく増やした列
       q3_anxiety: body.q3_anxiety ?? "",
       q5_impressions: body.q5_impressions ?? [],
       q6_experience: body.q6_experience ?? "",
       q7_recommend: body.q7_recommend ?? ""
     };
 
-    // session_id で1件にまとめる（同じsidで上書き）
-    const { error } = await supabase
-      .from("survey_answers")
-      .upsert(row, { onConflict: "session_id" });
+    // まずは insert（ダメなら error が返る）
+    const { error } = await supabase.from("survey_answers").insert(row);
 
     if (error) {
       return Response.json({ ok: false, error: error.message }, { status: 500 });

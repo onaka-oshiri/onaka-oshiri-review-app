@@ -1,60 +1,20 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 
 const PLACE_ID = "ChIJUzCzdW2NGGAROHHvN9rZPTc";
-const GOOGLE_REVIEW_URL =
-  `https://search.google.com/local/writereview?placeid=${PLACE_ID}`;
+const GOOGLE_REVIEW_URL = `https://search.google.com/local/writereview?placeid=${PLACE_ID}`;
 
-function buildReviewText(answer) {
-  const {
-    q1_services = [],
-    q2_reasons = [],
-    q3_anxiety = "",
-    q5_impressions = [],
-    q6_experience = "",
-    q4_free = "",
-  } = answer || {};
-
-  const parts = [];
-
-  // 導入（軽くランダム化）
-  const intros = [
-    "初めて受診しましたが、",
-    "今回受診して感じたのは、",
-    "少し緊張していましたが、",
-    "以前から気になっており、",
-  ];
-  parts.push(intros[Math.floor(Math.random() * intros.length)]);
-
-  if (q1_services?.length) {
-    parts.push(`「${q1_services.slice(0, 2).join("・")}」で伺いました。`);
-  }
-
-  if (q3_anxiety) {
-    parts.push(`受診前は「${q3_anxiety}」でしたが、`);
-  }
-
-  if (q5_impressions?.length) {
-    parts.push(`${q5_impressions.slice(0, 3).join("、")}点が印象的でした。`);
-  }
-
-  if (q6_experience) {
-    parts.push(`全体として「${q6_experience}」と感じました。`);
-  }
-
-  if (q2_reasons?.length) {
-    parts.push(`当院を選んだ理由は「${q2_reasons.slice(0, 2).join("・")}」です。`);
-  }
-
-  if (q4_free?.trim()) {
-    parts.push(q4_free.trim());
-  }
-
-  parts.push("ありがとうございました。");
-
-  return parts.join("");
+function normalizeStarLabel(star, fallback) {
+  if (fallback && String(fallback).trim()) return String(fallback).trim();
+  const s = Number(star || 0);
+  if (s >= 5) return "とても満足";
+  if (s === 4) return "満足";
+  if (s === 3) return "普通";
+  if (s === 2) return "やや不満";
+  if (s === 1) return "不満";
+  return "";
 }
 
 function ReviewInner() {
@@ -65,11 +25,26 @@ function ReviewInner() {
   const [answer, setAnswer] = useState(null);
   const [error, setError] = useState("");
 
+  // AI生成
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+
+  // コピー表示
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     if (!sid) return;
 
     const run = async () => {
       setLoading(true);
+      setError("");
+      setAnswer(null);
+
+      setAiText("");
+      setAiError("");
+      setCopied(false);
+
       const res = await fetch(`/api/survey/get?clinic_id=1&sid=${sid}`);
       const json = await res.json();
       if (!json.ok) {
@@ -77,6 +52,7 @@ function ReviewInner() {
         setLoading(false);
         return;
       }
+
       setAnswer(json.answer);
       setLoading(false);
     };
@@ -84,50 +60,153 @@ function ReviewInner() {
     run();
   }, [sid]);
 
-  const reviewText = useMemo(() => {
-    if (!answer) return "";
-    return buildReviewText(answer);
+  const star = useMemo(() => Number(answer?.q3_star || 0), [answer]);
+  const isFive = star >= 5;
+  const isFour = star === 4;
+  const isLow = star <= 3;
+
+  const generate = useCallback(async () => {
+    if (!answer) return;
+
+    setAiLoading(true);
+    setAiError("");
+    setCopied(false);
+
+    try {
+      const visit_menu = Array.isArray(answer?.q1_services) ? answer.q1_services : [];
+      const q2_reason =
+        Array.isArray(answer?.q2_reasons) && answer.q2_reasons.length ? answer.q2_reasons[0] : "";
+
+      const q3_label = normalizeStarLabel(answer?.q3_star, answer?.q3_label);
+
+      const free_text = (answer?.q4_free || "").toString();
+
+      const staff_label =
+        Array.isArray(answer?.q5_impressions) && answer.q5_impressions.length
+          ? answer.q5_impressions.slice(0, 3).join("、")
+          : "";
+
+      const resp = await fetch("/api/review/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clinic_name: "おなかとおしりのクリニック 東京大塚",
+          visit_menu,
+          q2_reason,
+          q3_label,
+          free_text,
+          staff_label,
+          star: Number(answer?.q3_star || 0),
+        }),
+      });
+
+      const data = await resp.json();
+      if (!data.ok) {
+        setAiError(data.error || "AI生成に失敗しました");
+        setAiText("");
+      } else {
+        setAiText((data.text || "").trim());
+      }
+    } catch (e) {
+      setAiError(String(e?.message || e));
+      setAiText("");
+    } finally {
+      setAiLoading(false);
+    }
   }, [answer]);
+
+  // answer取得後に自動生成
+  useEffect(() => {
+    if (!answer) return;
+    generate();
+  }, [answer, generate]);
+
+  const reviewText = aiText;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(reviewText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert("コピーに失敗しました。ブラウザの権限をご確認ください。");
+    }
+  };
 
   if (!sid) return <div style={{ padding: 20 }}>sidがありません</div>;
   if (loading) return <div style={{ padding: 20 }}>読み込み中…</div>;
   if (error) return <div style={{ padding: 20, color: "red" }}>{error}</div>;
 
-  const star = Number(answer?.q3_star || 0);
-  const isFive = star >= 5;
-  const isLow = star <= 3;
-
   return (
-    <div style={{ maxWidth: 700, margin: "40px auto", padding: 20 }}>
+    <div style={{ maxWidth: 720, margin: "40px auto", padding: 20 }}>
       <h1>アンケートありがとうございました</h1>
+
+      {/* 選択内容の可視化（確認しやすくする） */}
+      <div style={{ fontSize: 13, opacity: 0.78, marginTop: 8, marginBottom: 14, lineHeight: 1.6 }}>
+        <div>
+          ★評価：{star || "-"}（{normalizeStarLabel(star, answer?.q3_label) || "-"}）
+        </div>
+        <div>
+          受診内容：
+          {Array.isArray(answer?.q1_services) && answer.q1_services.length
+            ? answer.q1_services.join("、")
+            : "-"}
+        </div>
+        <div>
+          来院理由：
+          {Array.isArray(answer?.q2_reasons) && answer.q2_reasons.length
+            ? answer.q2_reasons.join("、")
+            : "-"}
+        </div>
+      </div>
 
       <div
         style={{
           background: "#f3f4f6",
           padding: 20,
           borderRadius: 12,
-          lineHeight: 1.7,
-          marginBottom: 20,
+          lineHeight: 1.8,
+          marginBottom: 12,
+          minHeight: 140,
+          whiteSpace: "pre-wrap",
         }}
       >
-        {reviewText}
+        {aiLoading ? "口コミ文を作成中…" : reviewText || "口コミ文を作成できませんでした。"}
       </div>
 
-      <button
-        onClick={() => navigator.clipboard.writeText(reviewText)}
-        style={{
-          padding: 12,
-          borderRadius: 8,
-          border: "none",
-          background: "#111827",
-          color: "white",
-          marginBottom: 16,
-        }}
-      >
-        口コミ文をコピー
-      </button>
+      {aiError && <div style={{ color: "red", marginBottom: 10 }}>AIエラー：{aiError}</div>}
 
-      {/* ★5以上のみGoogle強調 */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+        <button
+          onClick={handleCopy}
+          disabled={!reviewText || aiLoading}
+          style={{
+            padding: 12,
+            borderRadius: 8,
+            border: "none",
+            background: copied ? "green" : "#111827",
+            color: "white",
+          }}
+        >
+          {copied ? "コピーしました ✓" : "口コミ文をコピー"}
+        </button>
+
+        <button
+          onClick={generate}
+          disabled={aiLoading}
+          style={{
+            padding: 12,
+            borderRadius: 8,
+            border: "1px solid #111827",
+            background: "white",
+            color: "#111827",
+          }}
+        >
+          文章を作り直す
+        </button>
+      </div>
+
+      {/* ★5：強調してGoogleへ */}
       {isFive && (
         <div>
           <a
@@ -149,7 +228,29 @@ function ReviewInner() {
         </div>
       )}
 
-      {/* ★3以下は内部のみ */}
+      {/* ★4：通常の案内 */}
+      {isFour && (
+        <div>
+          <a
+            href={GOOGLE_REVIEW_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "inline-block",
+              padding: "12px 20px",
+              borderRadius: 999,
+              background: "#111827",
+              fontWeight: 700,
+              textDecoration: "none",
+              color: "white",
+            }}
+          >
+            Googleに投稿する（任意）
+          </a>
+        </div>
+      )}
+
+      {/* ★3以下：外部誘導しない */}
       {isLow && (
         <div
           style={{
@@ -177,4 +278,3 @@ export default function ReviewPage() {
     </Suspense>
   );
 }
-

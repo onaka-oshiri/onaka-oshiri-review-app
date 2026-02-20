@@ -78,7 +78,6 @@ function ReviewInner() {
         Array.isArray(answer?.q2_reasons) && answer.q2_reasons.length ? answer.q2_reasons[0] : "";
 
       const q3_label = normalizeStarLabel(answer?.q3_star, answer?.q3_label);
-
       const free_text = (answer?.q4_free || "").toString();
 
       const staff_label =
@@ -124,10 +123,11 @@ function ReviewInner() {
   const reviewText = aiText;
 
   const handleCopy = async () => {
+    if (!aiText) return;
     try {
-      await navigator.clipboard.writeText(reviewText);
+      await navigator.clipboard.writeText(aiText);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), 1500); // ★B：1.5秒後に戻す
     } catch {
       alert("コピーに失敗しました。ブラウザの権限をご確認ください。");
     }
@@ -142,7 +142,15 @@ function ReviewInner() {
       <h1>アンケートありがとうございました</h1>
 
       {/* 選択内容の可視化（確認しやすくする） */}
-      <div style={{ fontSize: 13, opacity: 0.78, marginTop: 8, marginBottom: 14, lineHeight: 1.6 }}>
+      <div
+        style={{
+          fontSize: 13,
+          opacity: 0.78,
+          marginTop: 8,
+          marginBottom: 14,
+          lineHeight: 1.6,
+        }}
+      >
         <div>
           ★評価：{star || "-"}（{normalizeStarLabel(star, answer?.q3_label) || "-"}）
         </div>
@@ -179,7 +187,7 @@ function ReviewInner() {
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <button
           onClick={handleCopy}
-          disabled={!reviewText || aiLoading}
+          disabled={!reviewText || aiLoading || copied}
           style={{
             padding: 12,
             borderRadius: 8,
